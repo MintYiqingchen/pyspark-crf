@@ -1,4 +1,5 @@
 import argparse
+import os
 from dataUtils import convertTo4Tag, lineToStr
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
@@ -9,11 +10,11 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     if args.phase=='convert':
-        outname = os.path.join('outputs',args.outname+'.txt')
-        print "[main] Convert {} to {}".format(filename, outname)
-        tagrdd = convertTo4Tag(args.filename, args.master_name)
+        outname = args.outname
+        print "[main] Convert {} to {}".format(args.filename, outname)
+        tagrdd = convertTo4Tag(args.filename, args.master)
         tagrdd.map(lineToStr) # rdd
         tagrdd.saveAsTextFile(outname)
-        print('[main] Finished')
+        print '[main] Finished'
     else:
         pass 

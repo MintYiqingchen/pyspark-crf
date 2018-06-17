@@ -24,7 +24,7 @@ def lineToStr(line):
     '''
     res = ' '.join(map(lambda t:unicode(t[0])+'/'+unicode(t[1]), line))
     return res
-def convertTo4Tag(input_file, output_file, master_name):
+def convertTo4Tag(input_file,master_name):
     conf = pyspark.SparkConf().setAppName("4Tag").setMaster(master_name)
     sc = pyspark.SparkContext(conf=conf)
     lines = sc.textFile(input_file) #.persist() cache it for perfermance
