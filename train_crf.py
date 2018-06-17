@@ -35,7 +35,6 @@ def run_train(master_name, filename):
 
     tag_score = cnn_model(inph)
     crf_model = CRF(True)
-    tag_score = crf_model(tag_score)
     model = Model(inputs=inph, outputs=tag_score)
     model.summary()
 

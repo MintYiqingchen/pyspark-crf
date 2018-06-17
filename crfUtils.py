@@ -1,8 +1,8 @@
+from __future__ import print_function
 import numpy as np
 from keras.layers import Layer
 import keras.backend as K
 
-from __future__ import print_function
 def viterbi(pathWeight, initW):
     '''@pathWeight: step*kind_t*kind_(t+1) t=1..T-1
     return: @bpath: best path
