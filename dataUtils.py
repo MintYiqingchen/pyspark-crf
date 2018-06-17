@@ -2,7 +2,6 @@ from __future__ import print_function
 import pyspark
 from operator import add
 import numpy as np
-from keras.utils import to_categorical
 class Indexer:
     _tagdict = {'B':0, 'E':1,'M':2, 'S':3, 'N':4}
     _chars = {}
@@ -45,18 +44,32 @@ class Indexer:
                 now_index = next_index
 
                 maxlen = max([len(x) for x in A])
-                print(A[0])
-                X = [list(map(lambda x:char2id(x[0]),sent)) for sent in A]
-                Y = [list(map(lambda x:tag2id(x[1]),sent)) for sent in A]
+                X = [list(map(lambda x:char2id.get(x[0],0),sent)) for sent in A]
+                Y = [list(map(lambda x:tag2id.get(x[1],0),sent)) for sent in A]
                 X = [x+[0]*(maxlen-len(x)) for x in X]
                 Y = [y+[4]*(maxlen-len(y)) for y in Y]
                 yield X,to_categorical(Y,5)
         return train_generator(tupList)
+
+def to_categorical(data, num_classes=None):
+    y = np.array(data, dtype='int')
+    input_shape = y.shape
+    if input_shape and input_shape[-1] == 1 and len(input_shape) > 1:
+        input_shape = tuple(input_shape[:-1])
+    y = y.ravel()
+    if not num_classes:
+        num_classes = np.max(y) + 1
+    n = y.shape[0]
+    categorical = np.zeros((n, num_classes), dtype=np.float32)
+    categorical[np.arange(n), y] = 1
+    output_shape = input_shape + (num_classes,)
+    categorical = np.reshape(categorical, output_shape)
+    return categorical
+    
 def tagForSentence(tokens):
     '''@tokens: List[token]
     return: @[Char,Tag]
     '''
-
     res = []
     for token in tokens:
         if len(token)==1:

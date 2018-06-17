@@ -5,6 +5,7 @@ from dataUtils import convertTo4Tag, lineToStr, Indexer, textFileToDataset
 
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from elephas.spark_model import SparkModel
+import elephas
 from elephas.utils.rdd_utils import to_simple_rdd
 
 from keras.utils import to_categorical
@@ -23,7 +24,7 @@ def run_train(master_name, filename):
 
     dataset = dataset.collect()
     print('[Prepare Trainloader]')
-    trainloader = Indexer.convertToBatchIter(dataset[:5000], 1)
+    trainloader = Indexer.convertToBatchIter(dataset[:10000], 10000)
     embedding_size = 128
     inph = Input(shape=(None,), dtype='int32')
     cnn_model = Sequential([
@@ -42,14 +43,16 @@ def run_train(master_name, filename):
                 optimizer='adam',
                 metrics=[crf_model.accuracy]
                 )
-
-    spark_model = SparkModel(sc,model)
+    optimizerE = elephas.optimizers.Adam()
+    spark_model = SparkModel(sc ,model, optimizer=optimizerE,frequency='batch', mode='synchronous', num_workers=2)
     ep = 0
-    while ep<1000:
-        X,Y = next(trainloader)
-        rdd = to_simple_rdd(sc, X, Y)
-        spark_model.train(rdd, nb_poch=1, batchsize=len(X), verbose=1)
-        ep += 1
+
+    #
+    X,Y = next(trainloader)
+    rdd = to_simple_rdd(sc, X, Y)
+    spark_model.train(rdd, nb_epoch=10, batch_size=16, verbose=1, validation_split=0.1)
+    model1 = spark_model.master_network()
+
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('phase',choices=['convert', 'train'])

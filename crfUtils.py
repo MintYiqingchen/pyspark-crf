@@ -2,6 +2,7 @@ from __future__ import print_function
 import numpy as np
 from keras.layers import Layer
 import keras.backend as K
+import tensorflow as tf
 
 def viterbi(pathWeight, initW):
     '''@pathWeight: step*kind_t*kind_(t+1) t=1..T-1
@@ -19,6 +20,8 @@ def viterbi(pathWeight, initW):
         bpath.append(list(from_t))
     return bpath, accum_prob
 
+def logsumexp(x, axis=None, keepdims=False):
+    return tf.reduce_logsumexp(x, axis, keepdims)
 
 class CRF(object):
     def __init__(self, label_size=5, ignore_last_label=False):
@@ -34,7 +37,7 @@ class CRF(object):
     def log_norm_step(self, inputs, states):
         states = K.expand_dims(states[0], 2) # (batch_size, output_dim, 1)
         trans = K.expand_dims(self.trans, 0) # (1, output_dim, output_dim)
-        output = K.logsumexp(states+trans, 1) # (batch_size, output_dim)
+        output = logsumexp(states+trans, 1) # (batch_size, output_dim)
         return output+inputs, [output+inputs]
     def path_score(self, inputs, labels):
         point_score = K.sum(K.sum(inputs*labels, 2), 1, keepdims=True)
@@ -51,7 +54,7 @@ class CRF(object):
         y_true,y_pred = y_true[:,:,:self.num_labels],y_pred[:,:,:self.num_labels]
         init_states = [y_pred[:,0]]
         log_norm,_,_ = K.rnn(self.log_norm_step, y_pred[:,1:], init_states, mask=mask)
-        log_norm = K.logsumexp(log_norm, 1, keepdims=True)
+        log_norm = logsumexp(log_norm, 1, keepdims=True)
         path_score = self.path_score(y_pred, y_true)
         return log_norm - path_score
     def accuracy(self, y_true, y_pred):
