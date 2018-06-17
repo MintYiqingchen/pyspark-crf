@@ -1,6 +1,7 @@
 import argparse
 import os
 from dataUtils import convertTo4Tag, lineToStr
+from __future__ import print_function
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('phase',choices=['convert', 'train'])
@@ -13,8 +14,8 @@ if __name__=='__main__':
         outname = args.outname
         print "[main] Convert {} to {}".format(args.filename, outname)
         tagrdd = convertTo4Tag(args.filename, args.master)
-        tagrdd.map(lineToStr) # rdd
-        tagrdd.saveAsTextFile(outname)
+        strrdd=tagrdd.map(lineToStr) # rdd
+        strrdd.saveAsTextFile(outname)
         print '[main] Finished'
     else:
         pass 
