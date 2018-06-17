@@ -39,9 +39,9 @@ def run_train(master_name, filename):
     model = Model(inputs=inph, outputs=tag_score)
     model.summary()
 
-    model.compile(loss=crf.loss,
+    model.compile(loss=crf_model.loss,
                 optimizer='adam',
-                metrics=[crf.accuracy]
+                metrics=[crf_model.accuracy]
                 )
 
     spark_model = SparkModel(sc,model)

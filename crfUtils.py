@@ -20,10 +20,11 @@ def viterbi(pathWeight, initW):
     return bpath, accum_prob
 
 
-class CRF(Layer):
-    def __init__(self, ignore_last_label=False, **kwargs):
+class CRF(object):
+    def __init__(self, label_size=5, ignore_last_label=False):
         self.ignore_last_label = 1 if ignore_last_label else 0
-        super(CRF, self).__init__(**kwargs)
+        self.num_labels = label_size - self.ignore_last_label
+        self.trans=K.random_uniform_variable(shape=(self.num_labels, self.num_labels), low=0, high=1)
     def build(self, input_shape):
         self.num_labels = input_shape[-1] - self.ignore_last_label
         self.trans = self.add_weight(name='crf_trans',
