@@ -14,7 +14,7 @@ from keras.layers import Dense, Embedding, Conv1D, Input
 from keras.models import Sequential, Model
 import keras.backend as K
 
-def run_train(master_name, filename):
+def run_train(master_name, filename, outname):
     import pyspark
     conf = pyspark.SparkConf().setAppName("CRF").setMaster(master_name)
     sc = pyspark.SparkContext(conf=conf)
@@ -24,7 +24,7 @@ def run_train(master_name, filename):
 
     dataset = dataset.collect()
     print('[Prepare Trainloader]')
-    trainloader = Indexer.convertToBatchIter(dataset[:10000], 10000)
+    trainloader = Indexer.convertToBatchIter(dataset, 1000)
     embedding_size = 128
     inph = Input(shape=(None,), dtype='int32')
     cnn_model = Sequential([
@@ -48,10 +48,15 @@ def run_train(master_name, filename):
     ep = 0
 
     #
-    X,Y = next(trainloader)
-    rdd = to_simple_rdd(sc, X, Y)
-    spark_model.train(rdd, nb_epoch=10, batch_size=16, verbose=1, validation_split=0.1)
-    model1 = spark_model.master_network()
+    while ep<50000:
+        X,Y = next(trainloader)
+        print(X[0])
+        ep=ep+len(Y)
+        rdd = to_simple_rdd(sc, X, Y)
+        model = spark_model.master_network
+        model.save(outname+'_{}'.format(ep))
+        spark_model.train(rdd, nb_epoch=20, validation_split=0.1, verbose=1)
+        print('[]')
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
@@ -70,4 +75,4 @@ if __name__=='__main__':
         print('[main] Finished')
     else:
         print("[main] Train CRF model")
-        model = run_train(args.master, args.filename)
+        model = run_train(args.master, args.filename, args.outname)

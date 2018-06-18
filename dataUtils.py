@@ -14,12 +14,12 @@ class Indexer:
         return Indexer._tagdict
 
     @staticmethod
-    def prepareIndexer(corps, min_count=20):
+    def prepareIndexer(corps, min_count=2):
         '''@corps: RDD [[(char, label)]]'''
         tmp=corps.map(lambda x:x+[('\0','N')]).flatMap(lambda x:x)
         tmp = tmp.map(lambda x:(x[0], 1)).reduceByKey(add)
         tmp = tmp.filter(lambda x: x[1]>=min_count).collect()
-        Indexer._chars = tmp
+        Indexer._chars = dict(tmp)
         Indexer._id2char = {i+1:j for i,j in enumerate(Indexer._chars)}
         Indexer._char2id = {j:i for i,j in Indexer._id2char.items()}
         Indexer._id2tag = {j:i for i,j in Indexer._tagdict.items()}
@@ -65,7 +65,7 @@ def to_categorical(data, num_classes=None):
     output_shape = input_shape + (num_classes,)
     categorical = np.reshape(categorical, output_shape)
     return categorical
-    
+
 def tagForSentence(tokens):
     '''@tokens: List[token]
     return: @[Char,Tag]
