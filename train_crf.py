@@ -1,18 +1,16 @@
 from __future__ import print_function
 import argparse
-import os
 from dataUtils import convertTo4Tag, lineToStr, Indexer, textFileToDataset
 
-from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from elephas.spark_model import SparkModel
-import elephas
 from elephas.utils.rdd_utils import to_simple_rdd
+import elephas
 
-from keras.utils import to_categorical
 from crfUtils import CRF
-from keras.layers import Dense, Embedding, Conv1D, Input
-from keras.models import Sequential, Model
-import keras.backend as K
+from keras.layers import Dense, Embedding, Conv1D, Lambda
+from keras.models import Sequential
+from keras.constraints import maxnorm
+from keras.initializers import glorot_normal
 
 def run_train(master_name, filename, outname):
     import pyspark
@@ -24,41 +22,51 @@ def run_train(master_name, filename, outname):
 
     dataset = dataset.collect()
     print('[Prepare Trainloader]')
-    trainloader = Indexer.convertToBatchIter(dataset, 1000)
+    trainloader = Indexer.convertToBatchIter(dataset, 10000)
     embedding_size = 128
-    inph = Input(shape=(None,), dtype='int32')
+    print('[Char account] {}'.format(len(Indexer._chars)))
+
+    crf_model = CRF(True, name='CRF')
     cnn_model = Sequential([
-        Embedding(len(Indexer._chars)+1,embedding_size),
-        Conv1D(128, 3, activation='relu', padding='same'),
-        Conv1D(128, 3, activation='relu', padding='same'),
-        Dense(5)
+        Embedding(len(Indexer._chars)+1, embedding_size),
+        Conv1D(128, 3, activation='relu', padding='same',\
+               kernel_constraint=maxnorm(1.0), name='conv1'),
+        Conv1D(128, 3, activation='relu', padding='same',\
+               kernel_constraint=maxnorm(1.0), name='conv2'),
+        Dense(5),
+        Lambda(lambda x:x)
+        #crf_model
     ])
-
-    tag_score = cnn_model(inph)
-    crf_model = CRF(True)
-    model = Model(inputs=inph, outputs=tag_score)
-    model.summary()
-
-    model.compile(loss=crf_model.loss,
+    '''
+    embed=Embedding(len(Indexer._chars)+1, embedding_size)(inph)
+    cnn=Conv1D(128, 3, activation='relu', padding='same')(embed)
+    cnn=Conv1D(128, 3, activation='relu', padding='same')(cnn)
+    tag_score=Dense(5)(cnn)
+    '''
+    crf_model.trans = cnn_model.layers[-1].add_weight(name='transM', shape=(crf_model.num_labels, crf_model.num_labels), initializer=glorot_normal())
+    cnn_model.compile(loss=crf_model.loss,
                 optimizer='adam',
                 metrics=[crf_model.accuracy]
                 )
+    cnn_model.summary()
+    print(cnn_model.weights)
+    print(crf_model.trans.__repr__())
     optimizerE = elephas.optimizers.Adam()
-    spark_model = SparkModel(sc ,model, optimizer=optimizerE,frequency='batch', mode='synchronous', num_workers=2)
-    ep = 0
+    spark_model = SparkModel(sc, cnn_model, optimizer=optimizerE,\
+                    frequency='epoch', mode='synchronous', num_workers=2,\
+                             ) #custom_objects={'CRF': crf_model})
 
-    #
-    while ep<50000:
+    ep = 0
+    while ep<10:
         X,Y = next(trainloader)
-        print(X[0])
-        ep=ep+len(Y)
+        ep = ep+len(Y)
         rdd = to_simple_rdd(sc, X, Y)
         model = spark_model.master_network
         model.save(outname+'_{}'.format(ep))
-        spark_model.train(rdd, nb_epoch=20, validation_split=0.1, verbose=1)
-        print('[]')
+        spark_model.train(rdd, nb_epoch=5, batch_size=100, validation_split=0.1, verbose=1)
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('phase',choices=['convert', 'train'])
     parser.add_argument('filename', help='file(directory) to convert or formated file to train')
@@ -66,11 +74,11 @@ if __name__=='__main__':
     parser.add_argument('--master', help='master ip:port or yarn', default='local')
     args = parser.parse_args()
 
-    if args.phase=='convert':
+    if args.phase == 'convert':
         outname = args.outname
         print("[main] Convert {} to {}".format(args.filename, outname))
         tagrdd = convertTo4Tag(args.filename, args.master)
-        strrdd=tagrdd.map(lineToStr) # rdd
+        strrdd = tagrdd.map(lineToStr) # rdd
         strrdd.saveAsTextFile(outname)
         print('[main] Finished')
     else:

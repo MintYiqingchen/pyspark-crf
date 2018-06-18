@@ -1,17 +1,41 @@
 from __future__ import print_function
-import pyspark
 from operator import add
 import numpy as np
-class Indexer:
-    _tagdict = {'B':0, 'E':1,'M':2, 'S':3, 'N':4}
+import pyspark
+
+
+class Indexer(object):
+    '''a class to record tag and chars'''
+    _tagdict = {'B': 0, 'E': 1, 'M': 2, 'S': 3, 'N': 4}
     _chars = {}
     _id2char = {}
     _char2id = {}
     _id2tag = {}
+
     @staticmethod
     @property
     def tagdict():
         return Indexer._tagdict
+
+    @staticmethod
+    @property
+    def chars():
+        return Indexer._chars
+
+    @staticmethod
+    @property
+    def id2char():
+        return Indexer._id2char
+
+    @staticmethod
+    @property
+    def char2id():
+        return Indexer._char2id
+
+    @staticmethod
+    @property
+    def id2tag():
+        return Indexer._id2tag
 
     @staticmethod
     def prepareIndexer(corps, min_count=2):
@@ -44,11 +68,12 @@ class Indexer:
                 now_index = next_index
 
                 maxlen = max([len(x) for x in A])
+                print(A[0])
                 X = [list(map(lambda x:char2id.get(x[0],0),sent)) for sent in A]
                 Y = [list(map(lambda x:tag2id.get(x[1],0),sent)) for sent in A]
                 X = [x+[0]*(maxlen-len(x)) for x in X]
                 Y = [y+[4]*(maxlen-len(y)) for y in Y]
-                yield X,to_categorical(Y,5)
+                yield np.array(X),to_categorical(Y,5)
         return train_generator(tupList)
 
 def to_categorical(data, num_classes=None):
@@ -78,6 +103,7 @@ def tagForSentence(tokens):
             tag = ['B']+['M']*(len(token)-2)+['E']
         res.extend([(c,t) for c,t in zip(token, tag)])
     return res
+
 def lineToStr(line):
     '''@line: [(a,b)]
     return: 'a/b a2/b2 ...'
@@ -105,4 +131,5 @@ def textFileToDataset(tfile):
         res = list(map(lambda tk: tuple(tk.split('/')), l))
         return res
     char_tag = tfile.map(func)
+    print(char_tag.first())
     return char_tag
