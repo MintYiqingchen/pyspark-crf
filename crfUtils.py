@@ -73,6 +73,7 @@ class CRF(object):
         return point_score+trans_score
     def call(self, inputs):
         return inputs
+
     def loss(self, y_true, y_pred):
         # (samples, time, 1): if a time step's value should be ignored,
         # its mask value should be 1

@@ -20,9 +20,9 @@ def run_train(master_name, filename, outname):
     dataset = textFileToDataset(tfile)
     Indexer.prepareIndexer(dataset)
 
-    dataset = dataset.collect()
-    print('[Prepare Trainloader]')
-    trainloader = Indexer.convertToBatchIter(dataset, 10000)
+    print('[Prepare Trainloader] {} samples'.format(dataset.count()))
+    trainset = Indexer.convertToElephasFormat(dataset)
+    print(trainset.first())
     embedding_size = 128
     print('[Char account] {}'.format(len(Indexer._chars)))
 
@@ -51,20 +51,16 @@ def run_train(master_name, filename, outname):
     cnn_model.summary()
     print(cnn_model.weights)
     print(crf_model.trans.__repr__())
-    optimizerE = elephas.optimizers.Adam()
+    # momentum = 0., decay=0. nesterov=False
+    optimizerE = elephas.optimizers.SGD(lr=0.001, momentum = 0.9, decay=0.7, nesterov=True)
     spark_model = SparkModel(sc, cnn_model, optimizer=optimizerE,\
-                    frequency='epoch', mode='synchronous', num_workers=2,\
+                    frequency='epoch', mode='asynchronous', num_workers=2,\
                              ) #custom_objects={'CRF': crf_model})
 
-    ep = 0
-    while ep<10:
-        X,Y = next(trainloader)
-        ep = ep+len(Y)
-        rdd = to_simple_rdd(sc, X, Y)
-        model = spark_model.master_network
-        model.save(outname+'_{}'.format(ep))
-        spark_model.train(rdd, nb_epoch=5, batch_size=100, validation_split=0.1, verbose=1)
-
+    spark_model.train(trainset, nb_epoch=2, batch_size=200, validation_split=0.3, verbose=1)
+    model = spark_model.master_network
+    model.save(outname)
+    print('Train Finish')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

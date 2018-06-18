@@ -48,33 +48,28 @@ class Indexer(object):
         Indexer._char2id = {j:i for i,j in Indexer._id2char.items()}
         Indexer._id2tag = {j:i for i,j in Indexer._tagdict.items()}
         print('[Indexer] Finish Prepare')
+    @staticmethod
+    def convertToElephasFormat(raw_rdd, shuffle=True):
+        '''[[(Char, tag)]] => [[(int, onehot)]]'''
+        rdd = raw_rdd.mapPartitions(Indexer.convertToBatch)
+        if shuffle:
+            rdd = rdd.repartition(rdd.getNumPartitions())
+        return rdd
 
     @staticmethod
-    def convertToBatchIter(tupList, batch_size, shuffle=True):
+    def convertToBatch(tupList):
         '''tupList:[[(char, label)]]'''
-        def train_generator(tupList):
-            if shuffle:
-                np.random.shuffle(tupList)
-            now_index = 0
-            char2id = Indexer._char2id
-            tag2id = Indexer._tagdict
-            while True:
-                if now_index + batch_size <= len(tupList):
-                    next_index = now_index+batch_size
-                    A = [tupList[i] for i in range(now_index, next_index)]
-                else:
-                    next_index = batch_size - len(tupList) + now_index
-                    A = tupList[now_index:] + tupList[: next_index]
-                now_index = next_index
+        char2id = Indexer._char2id
+        tag2id = Indexer._tagdict
+        A = list(tupList)
 
-                maxlen = max([len(x) for x in A])
-                print(A[0])
-                X = [list(map(lambda x:char2id.get(x[0],0),sent)) for sent in A]
-                Y = [list(map(lambda x:tag2id.get(x[1],0),sent)) for sent in A]
-                X = [x+[0]*(maxlen-len(x)) for x in X]
-                Y = [y+[4]*(maxlen-len(y)) for y in Y]
-                yield np.array(X),to_categorical(Y,5)
-        return train_generator(tupList)
+        maxlen = max([len(x) for x in A])
+        X = [list(map(lambda x:char2id.get(x[0],0),sent)) for sent in A]
+        Y = [list(map(lambda x:tag2id.get(x[1],0),sent)) for sent in A]
+        X = [x+[0]*(maxlen-len(x)) for x in X]
+        Y = [y+[4]*(maxlen-len(y)) for y in Y]
+        X,Y = np.array(X) , to_categorical(Y,5)
+        return list(zip(X,Y))
 
 def to_categorical(data, num_classes=None):
     y = np.array(data, dtype='int')
@@ -125,11 +120,12 @@ def convertTo4Tag(input_file,master_name):
     return tags
 
 def textFileToDataset(tfile):
-    '''@tfile: textFile RDD'''
+    '''@tfile: textFile RDD
+    return: RDD [[(char, tag)]]
+    '''
     def func(line):
         l = line.strip().split()
         res = list(map(lambda tk: tuple(tk.split('/')), l))
         return res
     char_tag = tfile.map(func)
-    print(char_tag.first())
     return char_tag
