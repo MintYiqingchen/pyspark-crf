@@ -28,7 +28,7 @@ class CRF(object):
         self.ignore_last_label = 1 if ignore_last_label else 0
         #super(CRF, self).__init__(**kwargs)
         self.num_labels = label_size - self.ignore_last_label
-
+        print('[CRF] num_labels:{}'.format(self.num_labels))
         # self.trans = self.get_transfer_matrix()
         # print(self.trans.__repr__())
         #self.trans=K.random_uniform_variable(shape=(self.num_labels, self.num_labels),

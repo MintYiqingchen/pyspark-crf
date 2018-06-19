@@ -6,61 +6,36 @@ import pyspark
 
 class Indexer(object):
     '''a class to record tag and chars'''
-    _tagdict = {'B': 0, 'E': 1, 'M': 2, 'S': 3, 'N': 4}
-    _chars = {}
-    _id2char = {}
-    _char2id = {}
-    _id2tag = {}
+    def __init__(self):
+        self.tagdict = {'B': 0, 'E': 1, 'M': 2, 'S': 3, 'N': 4}
+        self.chars = {}
+        self.id2char = {}
+        self.char2id = {}
+        self.id2tag = {}
 
-    @staticmethod
-    @property
-    def tagdict():
-        return Indexer._tagdict
-
-    @staticmethod
-    @property
-    def chars():
-        return Indexer._chars
-
-    @staticmethod
-    @property
-    def id2char():
-        return Indexer._id2char
-
-    @staticmethod
-    @property
-    def char2id():
-        return Indexer._char2id
-
-    @staticmethod
-    @property
-    def id2tag():
-        return Indexer._id2tag
-
-    @staticmethod
-    def prepareIndexer(corps, min_count=2):
+    def prepareIndexer(self,corps, min_count=2):
         '''@corps: RDD [[(char, label)]]'''
         tmp=corps.map(lambda x:x+[('\0','N')]).flatMap(lambda x:x)
         tmp = tmp.map(lambda x:(x[0], 1)).reduceByKey(add)
         tmp = tmp.filter(lambda x: x[1]>=min_count).collect()
-        Indexer._chars = dict(tmp)
-        Indexer._id2char = {i+1:j for i,j in enumerate(Indexer._chars)}
-        Indexer._char2id = {j:i for i,j in Indexer._id2char.items()}
-        Indexer._id2tag = {j:i for i,j in Indexer._tagdict.items()}
+        self.chars = dict(tmp)
+        self.id2char = {i+1:j for i,j in enumerate(self.chars)}
+        self.char2id = {j:i for i,j in self.id2char.items()}
+        self.id2tag = {j:i for i,j in self.tagdict.items()}
+        assert len(self.char2id)>0, 'Indexer.char2id is empty'
         print('[Indexer] Finish Prepare')
-    @staticmethod
-    def convertToElephasFormat(raw_rdd, shuffle=True):
+    def convertToElephasFormat(self, raw_rdd, shuffle=True):
         '''[[(Char, tag)]] => [[(int, onehot)]]'''
-        rdd = raw_rdd.mapPartitions(Indexer.convertToBatch)
+        rdd = raw_rdd.mapPartitions(self.convertToBatch)
         if shuffle:
             rdd = rdd.repartition(rdd.getNumPartitions())
         return rdd
 
-    @staticmethod
-    def convertToBatch(tupList):
+    def convertToBatch(self,tupList):
         '''tupList:[[(char, label)]]'''
-        char2id = Indexer._char2id
-        tag2id = Indexer._tagdict
+        char2id = self.char2id
+        assert len(char2id)>0, 'char2id is empty'
+        tag2id = self.tagdict
         A = list(tupList)
 
         maxlen = max([len(x) for x in A])
@@ -69,6 +44,7 @@ class Indexer(object):
         X = [x+[0]*(maxlen-len(x)) for x in X]
         Y = [y+[4]*(maxlen-len(y)) for y in Y]
         X,Y = np.array(X) , to_categorical(Y,5)
+        assert np.all(np.sum(X,axis=1)), X
         return list(zip(X,Y))
 
 def to_categorical(data, num_classes=None):

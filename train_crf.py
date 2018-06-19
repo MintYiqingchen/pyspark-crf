@@ -18,17 +18,17 @@ def run_train(master_name, filename, outname):
     sc = pyspark.SparkContext(conf=conf)
     tfile = sc.textFile(filename)
     dataset = textFileToDataset(tfile)
-    Indexer.prepareIndexer(dataset)
+    indexer = Indexer()
+    indexer.prepareIndexer(dataset, min_count=0)
 
     print('[Prepare Trainloader] {} samples'.format(dataset.count()))
-    trainset = Indexer.convertToElephasFormat(dataset)
-    print(trainset.first())
+    trainset = indexer.convertToElephasFormat(dataset)
     embedding_size = 128
-    print('[Char account] {}'.format(len(Indexer._chars)))
+    print('[Char account] {}'.format(len(indexer.chars)))
 
-    crf_model = CRF(True, name='CRF')
+    crf_model = CRF(5, True, name='CRF')
     cnn_model = Sequential([
-        Embedding(len(Indexer._chars)+1, embedding_size),
+        Embedding(len(indexer.chars)+1, embedding_size),
         Conv1D(128, 3, activation='relu', padding='same',\
                kernel_constraint=maxnorm(1.0), name='conv1'),
         Conv1D(128, 3, activation='relu', padding='same',\
@@ -43,16 +43,16 @@ def run_train(master_name, filename, outname):
     cnn=Conv1D(128, 3, activation='relu', padding='same')(cnn)
     tag_score=Dense(5)(cnn)
     '''
-    crf_model.trans = cnn_model.layers[-1].add_weight(name='transM', shape=(crf_model.num_labels, crf_model.num_labels), initializer=glorot_normal())
+    crf_model.trans = cnn_model.layers[-1].add_weight(name='transM', \
+                        shape=(crf_model.num_labels, crf_model.num_labels),\
+                        initializer=glorot_normal())
     cnn_model.compile(loss=crf_model.loss,
                 optimizer='adam',
                 metrics=[crf_model.accuracy]
                 )
     cnn_model.summary()
-    print(cnn_model.weights)
-    print(crf_model.trans.__repr__())
     # momentum = 0., decay=0. nesterov=False
-    optimizerE = elephas.optimizers.SGD(lr=0.001, momentum = 0.9, decay=0.7, nesterov=True)
+    optimizerE = elephas.optimizers.SGD(lr=0.0001, momentum = 0.9, decay=0.7, nesterov=True)
     spark_model = SparkModel(sc, cnn_model, optimizer=optimizerE,\
                     frequency='epoch', mode='asynchronous', num_workers=2,\
                              ) #custom_objects={'CRF': crf_model})
